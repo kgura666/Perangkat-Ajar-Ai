@@ -33542,8 +33542,9 @@ function defaults() {
       modul: { src: '', judul: '', tp: '', materi: '', jp: 4, pertemuan: 2, model: MODEL_PEMBELAJARAN[0], note: '' },
       lkpd: { src: '', judul: '', tp: '', materi: '', jp: 2, aktivitas: 2, latihan: 4, gaya: 'Diskusi kelompok dan analisis gambar/kasus', theme: 'ceria', tema: '', useMateri: true, note: '', who: 'siswa' },
       materi: { src: '', judul: '', tp: '', materi: '', pg: 5, uraian: 2, detail: 'sedang', note: '', fmt: 'formal', who: 'siswa' },
+      game: { types: [], n: 6 },
     },
-    docs: { cp: null, atp: null, modul: null, materi: null, materiX: null, lkpd: null },
+    docs: { cp: null, atp: null, modul: null, materi: null, materiX: null, game: null, lkpd: null },
   };
 }
 function merge(base, over) {
@@ -35422,7 +35423,7 @@ const sel = (label, path, opts, o = {}) => `<label class="f ${o.cls || ''}"><spa
 const ta = (label, path, o = {}) => `<label class="f ${o.cls || ''}"><span>${label}</span><textarea data-bind="${path}"${o.ph ? ` placeholder="${esc(o.ph)}"` : ''} style="${o.h ? `min-height:${o.h}px` : ''}">${esc(getPath(State, path))}</textarea></label>`;
 
 function go(id) { CUR = id; closeNav(); renderNav(); renderView(); window.scrollTo(0, 0); }
-function hasDoc(v) { return v.doc && (State.docs[v.doc] || (v.id === 'materi' && State.docs.materiX)); }
+function hasDoc(v) { return v.doc && (State.docs[v.doc] || (v.id === 'materi' && (State.docs.materiX || State.docs.game))); }
 const VMETA = {
   identitas: ['🏫', '#f59e0b', 'Sekolah, guru, logo'],
   data: ['📊', '#2e7dd1', 'Kalender & CP resmi'],
@@ -35669,13 +35670,174 @@ function vModul() {
   ${paperArea('modul', 'Pilih TP dari ATP (atau isi manual) lalu tekan <b>Generate Modul Ajar</b>.')}`;
 }
 const whoTabs = (which, who, has) => `<div class="tabs"><button class="${who === 'guru' ? '' : 'on'}" data-act="who-tab" data-w="${which}" data-v="siswa">🧑‍🎓 File untuk siswa</button><button class="${who === 'guru' ? 'on' : ''}" data-act="who-tab" data-w="${which}" data-v="guru">🧑‍🏫 Pedoman &amp; kunci guru (file terpisah)</button></div>${who === 'guru' && has ? '<div class="note info">Ini file <b>khusus guru</b>. Tombol unduh di bawah menghasilkan file terpisah dari lembar siswa, jadi aman dibagikan ke siswa tanpa kunci jawaban.</div>' : ''}`;
+/* ============ Materi Ajar: GAME PEMBELAJARAN INTERAKTIF (HTML) ============ */
+const GAME_TYPES = [
+  { id: 'match', ic: '🔗', n: 'Mencocokkan Pasangan', d: 'Hubungkan kata/istilah dengan artinya (dua kolom).', fmt: '"pairs":[{"a":"istilah","b":"pasangannya"}] (6-8 pasang, teks singkat)' },
+  { id: 'memory', ic: '🃏', n: 'Kartu Memori', d: 'Buka dua kartu, cari pasangan yang cocok.', fmt: '"pairs":[{"a":"...","b":"..."}] (6 pasang, teks sangat singkat)' },
+  { id: 'mystery', ic: '🎁', n: 'Tebak Isi Kotak', d: 'Pilih kotak bernomor, jawab soal, buka hadiahnya (bisa zonk!).', fmt: '"items":[{"q":"soal","opts":["A","B","C","D"],"a":indeks_benar_0-3}]' },
+  { id: 'quiz', ic: '⚡', n: 'Kuis Kilat', d: 'Pilihan ganda berwaktu, 3 nyawa, bonus beruntun.', fmt: '"items":[{"q":"soal","opts":["A","B","C","D"],"a":indeks_benar_0-3}]' },
+  { id: 'tf', ic: '✅', n: 'Benar atau Salah', d: 'Tentukan pernyataan benar atau salah, ada penjelasannya.', fmt: '"items":[{"s":"pernyataan","a":true atau false,"why":"penjelasan singkat"}]' },
+  { id: 'anagram', ic: '🔤', n: 'Susun Huruf', d: 'Susun huruf acak menjadi istilah yang benar berdasarkan petunjuk.', fmt: '"items":[{"w":"KATA TANPA SPASI HURUF KAPITAL","clue":"petunjuk"}] (kata 4-12 huruf)' },
+  { id: 'order', ic: '🔢', n: 'Urutkan Langkah', d: 'Susun langkah/peristiwa/proses dengan urutan yang benar.', fmt: '"sets":[{"t":"judul urutan","steps":["langkah 1 (urut benar)","langkah 2","..."]}] (2-3 set, 4-6 langkah)' },
+  { id: 'sort', ic: '🗂️', n: 'Kelompokkan', d: 'Masukkan setiap item ke kategori yang tepat.', fmt: '"cats":[{"n":"nama kategori","items":["item","item","item"]}] (2-3 kategori, 3-4 item per kategori)' },
+];
+const GAME_IDEAS = ['Teka-teki silang', 'Cari kata (word search)', 'Roda putar pertanyaan', 'Hangman / tebak huruf', 'Lengkapi kalimat (drag kata)', 'Labirin/kejar harta karun soal', 'Cerdas cermat antar tim', 'Tebak gambar/diagram berlabel'];
+function gameRec(mp) {
+  const m = String(mp || '').toLowerCase(), t = (re, a) => re.test(m) ? a : null;
+  return t(/inggris|indonesia|bahasa|arab|jawa|daerah/, ['match', 'anagram', 'memory', 'tf', 'quiz']) ||
+    t(/matematika/, ['quiz', 'mystery', 'sort', 'order', 'tf']) ||
+    t(/ipas|ipa|alam|biologi|fisika|kimia/, ['sort', 'order', 'memory', 'match', 'quiz']) ||
+    t(/ips|sosial|sejarah|geografi|ekonomi/, ['order', 'match', 'mystery', 'tf', 'sort']) ||
+    t(/informatika|tik|koding/, ['order', 'sort', 'quiz', 'tf', 'anagram']) ||
+    t(/pjok|jasmani|olahraga/, ['order', 'quiz', 'mystery', 'tf']) ||
+    t(/agama|pancasila|pkn|ppkn|budi pekerti/, ['tf', 'match', 'mystery', 'sort', 'quiz']) ||
+    t(/seni|prakarya|musik|rupa/, ['match', 'memory', 'quiz', 'sort']) ||
+    ['match', 'memory', 'mystery', 'quiz', 'tf'];
+}
+function promptGame(f, types) {
+  const n = State.forms.game.n, spec = types.map(id => { const g = GAME_TYPES.find(x => x.id === id); return `- tipe "${id}" (${g.n}): ${g.fmt}`; }).join('\n');
+  return `Mapel: ${State.ctx.mapel}, Kelas ${State.ctx.kelas} ${State.ctx.jenjang}.
+- Topik/Judul: ${f.judul || f.materi}
+- Lingkup materi: ${f.materi}
+- Tujuan pembelajaran: ${f.tp}${f.note ? `\n- Catatan guru: ${f.note}` : ''}
+TUGAS: Buat bahan GAME PEMBELAJARAN INTERAKTIF yang akurat, sesuai materi dan tingkat kelas, bahasa Indonesia yang mudah dipahami siswa (kecuali mapel bahasa asing). Untuk setiap tipe di bawah, buat ${n} butir (kecuali ada jumlah lain di format). Semua jawaban harus benar secara materi dan tidak ambigu; pengecoh pilihan ganda harus masuk akal.
+TIPE GAME YANG DIBUAT:
+${spec}
+KELUARAN: HANYA satu objek JSON valid, tanpa teks lain:
+{ "judul": "judul game singkat bertema materi", "games": [ { "tipe": "id tipe", "judul": "nama permainan", "petunjuk": "1 kalimat cara bermain", ...isi sesuai format tipe } ] }
+Satu entri "games" untuk setiap tipe, urutannya sama. Jangan gunakan LaTeX atau Markdown.`;
+}
+function normalizeGame(r, f) {
+  const S = v => String(v ?? '').trim(), A = v => Array.isArray(v) ? v : [], games = [];
+  const mc = x => { const o = A(x.opts).map(S).filter(Boolean).slice(0, 4), a = Math.round(+x.a); return S(x.q) && o.length >= 2 && a >= 0 && a < o.length ? { q: S(x.q), opts: o, a } : null; };
+  A(r.games).forEach(g => {
+    const t = S(g.tipe).toLowerCase(), T = GAME_TYPES.find(x => x.id === t); if (!T) return;
+    const o = { tipe: t, judul: S(g.judul) || T.n, petunjuk: S(g.petunjuk) || T.d };
+    if (t === 'match' || t === 'memory') o.pairs = A(g.pairs).map(p => ({ a: S(p.a), b: S(p.b) })).filter(p => p.a && p.b);
+    else if (t === 'mystery' || t === 'quiz') o.items = A(g.items).map(mc).filter(Boolean);
+    else if (t === 'tf') o.items = A(g.items).map(x => ({ s: S(x.s), a: x.a === true || /^(true|benar)$/i.test(S(x.a)), why: S(x.why) })).filter(x => x.s);
+    else if (t === 'anagram') o.items = A(g.items).map(x => ({ w: S(x.w).toUpperCase().replace(/\s+/g, ''), clue: S(x.clue) })).filter(x => x.w.length >= 3);
+    else if (t === 'order') o.sets = A(g.sets).map(s => ({ t: S(s.t), steps: A(s.steps).map(S).filter(Boolean) })).filter(s => s.steps.length >= 3);
+    else if (t === 'sort') o.cats = A(g.cats).map(c => ({ n: S(c.n), items: A(c.items).map(S).filter(Boolean) })).filter(c => c.n && c.items.length);
+    const n = (o.pairs || o.items || o.sets || o.cats || []).length; if (n) games.push(o);
+  });
+  if (!games.length) throw new Error('Respons AI tidak berisi data game yang valid. Coba generate ulang.');
+  return { judul: S(r.judul) || f.judul || f.materi, mapel: State.ctx.mapel, kelas: State.ctx.kelas, games };
+}
+async function genGame() {
+  const f = State.forms.materi, g = State.forms.game;
+  if (!needCtx() || !needKey()) return;
+  if (!f.tp.trim() && !f.materi.trim() && !f.judul.trim()) { toast('Isi Topik/Materi atau pilih dari ATP.', true); return; }
+  if (!g.types.length) { toast('Pilih minimal satu jenis game.', true); return; }
+  const b = busy('Menyusun game pembelajaran… (bisa 30–90 detik)');
+  try {
+    const r = await callAI(SYS, promptGame(f, g.types), { maxTokens: 12000, onWait: b.set });
+    State.docs.game = normalizeGame(r, f); save(); track('generate', `Game • ${trackInfo()} • ${f.judul || f.materi}`); toast('Game pembelajaran berhasil dibuat. Klik ▶ Mainkan untuk mencoba.'); renderView();
+  } catch (e) { showErr(e); } finally { b.done(); }
+}
+const GAME_CSS = '*{box-sizing:border-box}body{margin:0;font:16px system-ui,sans-serif;background:linear-gradient(160deg,#e0f2fe,#fef9c3);color:#1e293b;padding:14px;min-height:100vh}h1{font-size:21px;text-align:center;margin:4px 0 2px}.sub{text-align:center;color:#475569;font-size:13px;margin-bottom:8px}#sb{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:8px 0}.t{background:#fff;border-radius:999px;padding:5px 14px;box-shadow:0 1px 4px #0002;font-weight:600}.t.on{background:#0f766e;color:#fff}#g{max-width:760px;margin:0 auto}.menu{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}.card{background:#fff;border-radius:16px;padding:14px;box-shadow:0 2px 8px #0002;text-align:center}.card h3{margin:4px 0}.card p{font-size:13px;color:#475569;margin:4px 0 8px}button{font:inherit;cursor:pointer;border:2px solid #0f766e;background:#fff;color:#0f766e;border-radius:12px;padding:9px 14px;font-weight:600}button.p{background:#0f766e;color:#fff}button:disabled{opacity:.5;cursor:default}.bx{background:#fff;border-radius:16px;padding:14px;box-shadow:0 2px 8px #0002;margin-top:8px}.q{font-size:18px;font-weight:600;margin:6px 0 10px}.opts{display:grid;gap:8px}.opts button{text-align:left}.ok{background:#16a34a!important;border-color:#16a34a!important;color:#fff!important}.no{background:#dc2626!important;border-color:#dc2626!important;color:#fff!important}.cols{display:grid;grid-template-columns:1fr 1fr;gap:8px}.cols button{width:100%;margin-bottom:8px}.sel{background:#fde68a!important}.done{visibility:hidden}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px}.grid button{min-height:72px;font-size:14px}.boxn{font-size:26px}.msg{text-align:center;font-weight:700;margin:10px 0;min-height:24px}.row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:8px}.ord{display:flex;gap:6px;align-items:center;margin-bottom:6px}.ord span{flex:1;background:#f1f5f9;border-radius:10px;padding:8px}.ord button{padding:4px 10px}.tile{min-width:42px;font-size:20px}.ans{font-size:26px;letter-spacing:5px;text-align:center;min-height:40px;font-weight:700}';
+function gameRuntime(D) {
+  const R = a => a.slice().sort(() => Math.random() - .5), E = (c, h) => { const e = document.createElement('div'); if (c) e.className = c; if (h != null) e.innerHTML = h; return e; };
+  const X = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const B = (t, f, c) => { const b = document.createElement('button'); b.innerHTML = t; if (c) b.className = c; b.onclick = f; return b; };
+  let T = [{ n: 'Skor', s: 0 }], cur = 0, nt = 1; const main = document.getElementById('g'), sb = document.getElementById('sb');
+  const board = () => { sb.innerHTML = T.map((t, i) => '<span class="t' + (T.length > 1 && i == cur ? ' on' : '') + '">' + X(t.n) + ': ' + t.s + '</span>').join(''); };
+  const sc = (ok, p) => { if (ok) T[cur].s += p; if (T.length > 1) cur = (cur + 1) % T.length; board(); };
+  const tell = (el, ok, m) => { el.className = 'msg'; el.style.color = ok ? '#15803d' : '#b91c1c'; el.innerHTML = m; };
+  const fin = (box, m) => { box.appendChild(E('msg', '🎉 ' + m)); box.appendChild(B('⬅ Kembali ke menu', menu, 'p')); };
+  function menu() {
+    T = []; for (let i = 0; i < nt; i++) T.push({ n: nt > 1 ? 'Tim ' + (i + 1) : 'Skor', s: 0 }); cur = 0; board(); main.innerHTML = '';
+    const tm = E('row', 'Mode: '), s = document.createElement('select'); s.innerHTML = '<option value="1">Main sendiri</option><option value="2">2 tim bergiliran</option><option value="3">3 tim</option><option value="4">4 tim</option>'; s.value = nt; s.onchange = () => { nt = +s.value; menu(); }; tm.appendChild(s); main.appendChild(tm);
+    const m = E('menu'); main.appendChild(m);
+    D.games.forEach((g, i) => { const c = E('card', '<div style="font-size:34px">' + g.ic + '</div><h3>' + X(g.judul) + '</h3><p>' + X(g.petunjuk) + '</p>'); c.appendChild(B('▶ Main', () => play(g), 'p')); m.appendChild(c); });
+  }
+  function play(g) {
+    main.innerHTML = ''; const h = E('', '<div class="q">' + g.ic + ' ' + X(g.judul) + '</div><div class="sub">' + X(g.petunjuk) + '</div>'), box = E('bx'); main.appendChild(h); main.appendChild(box); main.appendChild(E('row')).appendChild(B('⬅ Menu', menu)); G[g.tipe](g, box);
+  }
+  const G = {
+    match(g, box) {
+      const P = g.pairs, L = R(P.map((p, i) => [p.a, i])), Rr = R(P.map((p, i) => [p.b, i])), m = E('msg'), c = E('cols'), l = E(), r = E(); let a = null, left = P.length; c.appendChild(l); c.appendChild(r); box.appendChild(c); box.appendChild(m);
+      const bl = [], br = [];
+      L.forEach(x => { const b = B(X(x[0]), () => { bl.forEach(y => y.classList.remove('sel')); b.classList.add('sel'); a = [x[1], b]; }); bl.push(b); l.appendChild(b); });
+      Rr.forEach(x => { const b = B(X(x[0]), () => { if (!a) return tell(m, 0, 'Pilih kolom kiri dulu'); if (a[0] == x[1]) { a[1].classList.add('ok'); b.classList.add('ok'); a[1].disabled = b.disabled = true; sc(1, 10); tell(m, 1, 'Benar! +10'); a = null; if (!--left) fin(box, 'Semua pasangan benar!'); } else { b.classList.add('no'); setTimeout(() => b.classList.remove('no'), 500); sc(0); tell(m, 0, 'Belum cocok, coba lagi'); } }); br.push(b); r.appendChild(b); });
+    },
+    memory(g, box) {
+      const cs = R(g.pairs.flatMap((p, i) => [[p.a, i], [p.b, i]])), gr = E('grid'), m = E('msg'); let f = [], left = g.pairs.length, lock = 0; box.appendChild(gr); box.appendChild(m);
+      cs.forEach(x => { const b = B('❓', () => { if (lock || b.disabled || f.some(y => y[1] == b)) return; b.innerHTML = X(x[0]); b.classList.add('sel'); f.push([x[1], b]); if (f.length == 2) { lock = 1; const ok = f[0][0] == f[1][0]; setTimeout(() => { if (ok) { f.forEach(y => { y[1].classList.add('ok'); y[1].disabled = true; }); sc(1, 10); if (!--left) fin(box, 'Semua pasangan ditemukan!'); } else { f.forEach(y => { y[1].innerHTML = '❓'; y[1].classList.remove('sel'); }); sc(0); } f = []; lock = 0; }, 800); } }); gr.appendChild(b); });
+    },
+    mystery(g, box) {
+      const pz = R([10, 10, 20, 20, 30, 50, 0, 0, 10, 20, 30, 10, 20, 0, 10, 20, 10, 30, 20, 10]), gr = E('grid'), m = E('msg'); let left = g.items.length; box.appendChild(gr); box.appendChild(m);
+      g.items.forEach((it, i) => { const b = B('<div class="boxn">🎁</div>' + (i + 1), () => { const q = E('', '<div class="q">Kotak ' + (i + 1) + ': ' + X(it.q) + '</div>'), o = E('opts'); q.appendChild(o); gr.style.display = 'none'; box.insertBefore(q, m);
+        it.opts.forEach((t, j) => o.appendChild(B(X(t), () => { [...o.children].forEach((y, k) => { y.disabled = 1; if (k == it.a) y.classList.add('ok'); }); const ok = j == it.a, p = pz[i % pz.length]; sc(ok, p); b.disabled = 1; b.innerHTML = ok ? (p ? '<div class="boxn">💰</div>+' + p : '<div class="boxn">😅</div>Zonk') : '<div class="boxn">💥</div>Salah'; tell(m, ok, ok ? (p ? 'Benar! Isi kotak: +' + p : 'Benar, tapi kotaknya zonk 😅') : 'Jawaban kurang tepat'); setTimeout(() => { q.remove(); gr.style.display = ''; if (!--left) fin(box, 'Semua kotak sudah dibuka!'); }, 1600); }))); }); gr.appendChild(b); });
+    },
+    quiz(g, box) {
+      const Q = R(g.items); let i = 0, hp = 3, st = 0, tm; const hd = E('msg'), qa = E(); box.appendChild(hd); box.appendChild(qa);
+      (function nx() { clearTimeout(tm); if (hp <= 0 || i >= Q.length) { qa.innerHTML = ''; return fin(box, hp <= 0 ? 'Nyawa habis. Coba lagi ya!' : 'Kuis selesai!'); } const it = Q[i++]; let t = 20, dn = 0; qa.innerHTML = '<div class="q">' + X(it.q) + '</div>'; const o = E('opts'); qa.appendChild(o);
+        const end = (j) => { if (dn) return; dn = 1; clearInterval(tm); [...o.children].forEach((y, k) => { y.disabled = 1; if (k == it.a) y.classList.add('ok'); else if (k == j) y.classList.add('no'); }); const ok = j == it.a; if (ok) { st++; sc(1, 10 + Math.min(st - 1, 5) * 2); } else { st = 0; hp--; sc(0); } setTimeout(nx, 1100); };
+        it.opts.forEach((x, j) => o.appendChild(B(X(x), () => end(j)))); const up = () => { hd.innerHTML = '❤️'.repeat(hp) + ' &nbsp; ⏱ ' + t + ' dtk' + (st > 1 ? ' &nbsp; 🔥 ' + st : ''); }; up(); tm = setInterval(() => { t--; up(); if (t <= 0) end(-1); }, 1000); })();
+    },
+    tf(g, box) {
+      let i = 0; const m = E('msg'), qa = E(); box.appendChild(qa); box.appendChild(m);
+      (function nx() { m.innerHTML = ''; if (i >= g.items.length) { qa.innerHTML = ''; return fin(box, 'Selesai!'); } const it = g.items[i++]; qa.innerHTML = '<div class="q">' + X(it.s) + '</div>'; const r = E('row'); qa.appendChild(r);
+        [true, false].forEach(v => r.appendChild(B(v ? '✅ Benar' : '❌ Salah', () => { const ok = v == it.a; [...r.children].forEach(y => y.disabled = 1); sc(ok, 10); tell(m, ok, (ok ? 'Tepat! ' : 'Kurang tepat. ') + X(it.why || '')); r.appendChild(B('Lanjut ➡', nx, 'p')); }))); })();
+    },
+    anagram(g, box) {
+      let i = 0; const qa = E(), m = E('msg'); box.appendChild(qa); box.appendChild(m);
+      (function nx() { m.innerHTML = ''; if (i >= g.items.length) { qa.innerHTML = ''; return fin(box, 'Semua kata terjawab!'); } const it = g.items[i++]; let s = ''; qa.innerHTML = '<div class="q">Petunjuk: ' + X(it.clue) + '</div>'; const an = E('ans', '&nbsp;'), r = E('row'), c = E('row'); qa.appendChild(an); qa.appendChild(r); qa.appendChild(c);
+        const sh = R(it.w.split('')), bs = []; sh.forEach(ch => { const b = B(ch, () => { s += ch; b.disabled = 1; an.textContent = s; if (s.length == it.w.length) { const ok = s == it.w; sc(ok, 15); tell(m, ok, ok ? 'Benar! +15' : 'Jawaban: ' + it.w); r.innerHTML = ''; c.innerHTML = ''; c.appendChild(B('Lanjut ➡', nx, 'p')); } }, 'tile'); bs.push(b); r.appendChild(b); });
+        c.appendChild(B('↺ Ulangi', () => { s = ''; an.innerHTML = '&nbsp;'; bs.forEach(b => b.disabled = 0); })); })();
+    },
+    order(g, box) {
+      let i = 0; const qa = E(), m = E('msg'); box.appendChild(qa); box.appendChild(m);
+      (function nx() { m.innerHTML = ''; if (i >= g.sets.length) { qa.innerHTML = ''; return fin(box, 'Semua urutan selesai!'); } const st = g.sets[i++]; let a = R(st.steps); if (a.join() == st.steps.join()) a.reverse(); qa.innerHTML = '<div class="q">' + X(st.t || 'Urutkan dengan benar') + '</div>'; const ls = E(); qa.appendChild(ls);
+        const dr = () => { ls.innerHTML = ''; a.forEach((x, k) => { const r = E('ord', '<span>' + (k + 1) + '. ' + X(x) + '</span>'); r.appendChild(B('▲', () => { if (k) { [a[k - 1], a[k]] = [a[k], a[k - 1]]; dr(); } })); r.appendChild(B('▼', () => { if (k < a.length - 1) { [a[k + 1], a[k]] = [a[k], a[k + 1]]; dr(); } })); ls.appendChild(r); }); }; dr();
+        const ck = B('Periksa', () => { const n = a.filter((x, k) => x == st.steps[k]).length, ok = n == a.length; [...ls.children].forEach((r, k) => r.firstChild.style.background = a[k] == st.steps[k] ? '#bbf7d0' : '#fecaca'); sc(ok, 10 * n); tell(m, ok, ok ? 'Urutan benar!' : n + ' dari ' + a.length + ' sudah pada posisi benar'); ck.remove(); qa.appendChild(B('Lanjut ➡', nx, 'p')); }, 'p'); qa.appendChild(ck); })();
+    },
+    sort(g, box) {
+      const all = R(g.cats.flatMap(c => c.items.map(x => [x, c.n]))), m = E('msg'), it = E('row'), cs = E('row'); let sel = null, left = all.length; box.appendChild(it); box.appendChild(m); box.appendChild(cs);
+      all.forEach(x => { const b = B(X(x[0]), () => { [...it.children].forEach(y => y.classList.remove('sel')); b.classList.add('sel'); sel = [x, b]; }); it.appendChild(b); });
+      g.cats.forEach(c => cs.appendChild(B('📁 ' + X(c.n), () => { if (!sel) return tell(m, 0, 'Pilih item dulu'); if (sel[0][1] == c.n) { sel[1].classList.add('done'); sc(1, 10); tell(m, 1, 'Tepat! +10'); sel = null; if (!--left) fin(box, 'Semua item terkelompok!'); } else { sc(0); tell(m, 0, 'Belum tepat, coba kategori lain'); } }, 'p')));
+    }
+  };
+  D.games.forEach(g => { const t = D.types.find(x => x.id == g.tipe); g.ic = t.ic; });
+  document.getElementById('jd').textContent = D.judul; document.getElementById('sj').textContent = D.mapel + ' • Kelas ' + D.kelas; menu();
+}
+function gameExportHTML(d) {
+  const D = { ...d, types: GAME_TYPES.map(t => ({ id: t.id, ic: t.ic })) };
+  return '<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + esc(d.judul) + '</title><style>' + GAME_CSS + '</style></head><body><h1 id="jd"></h1><div class="sub" id="sj"></div><div id="sb"></div><div id="g"></div><script>(' + gameRuntime.toString() + ')(' + JSON.stringify(D).replace(/</g, '\\u003c') + ')<\/script></body></html>';
+}
+function mxTabs(cur) {
+  const D = State.docs, k = State.forms.materi.fmt;
+  return `<div class="tabs"><button class="${k === 'formal' ? 'on' : ''}" data-act="mx-tab" data-v="formal">📄 Format formal${D.materi ? ' ✓' : ''}</button><button class="${k === 'interaktif' ? 'on' : ''}" data-act="mx-tab" data-v="interaktif">🎨 Format interaktif${D.materiX ? ' ✓' : ''}</button><button class="${k === 'game' ? 'on' : ''}" data-act="mx-tab" data-v="game">🎮 Game pembelajaran${D.game ? ' ✓' : ''}</button></div>`;
+}
+function vGame() {
+  const f = 'forms.materi', g = State.forms.game, d = State.docs.game, rec = gameRec(State.ctx.mapel);
+  if (!g.types.length) g.types = rec.slice(0, 3);
+  const chips = GAME_TYPES.map(t => `<label class="card" style="cursor:pointer;display:flex;gap:8px;align-items:flex-start;padding:10px;border:1px solid var(--line,#d5dde6);border-radius:12px;background:var(--card,#fff)"><input type="checkbox" data-act="game-pick" data-id="${t.id}"${g.types.includes(t.id) ? ' checked' : ''}><span><b>${t.ic} ${t.n}</b>${rec.includes(t.id) ? ' <span class="ap-tag">★ cocok untuk mapel ini</span>' : ''}<br><small>${t.d}</small></span></label>`).join('');
+  return `<h1 class="pt">Materi Ajar</h1><p class="lead">Buat <b>game pembelajaran interaktif</b> dalam satu file HTML yang bisa dimainkan siswa di HP/laptop tanpa internet, atau ditampilkan di layar kelas dengan <b>mode tim</b> bergiliran. AI menyusun soal/pasangan sesuai materi, mesin game bawaan aplikasi yang memainkannya.</p>${noKeyNote()}${errBox}
+  <div class="card"><h2>Bahan Game</h2><div class="grid">
+    ${atpPicker('materi')}
+    ${fld('Topik / judul materi', f + '.judul', { cls: 'w2' })}
+    ${fld('Lingkup materi', f + '.materi', { cls: 'w2' })}
+    ${ta('Tujuan pembelajaran', f + '.tp', { cls: 'wide', h: 70 })}
+    ${fld('Jumlah butir per game', 'forms.game.n', { type: 'number', num: 1, min: 4, max: 12 })}
+    ${ta('Catatan khusus (opsional)', f + '.note', { cls: 'wide', h: 56, ph: 'mis. soal sesuai kehidupan sehari-hari siswa desa; hindari istilah asing' })}
+  </div></div>
+  <div class="card"><h2>Pilih Jenis Game</h2><p class="hint" style="margin:0 0 8px">Pilih satu atau beberapa; semuanya digabung dalam satu file dengan menu pilihan game. Tanda ★ = saran untuk mapel <b>${esc(State.ctx.mapel || 'terpilih')}</b>.</p><div class="grid">${chips}</div>
+    <p class="hint" style="margin:10px 0 0"><b>Ide jenis lain yang bisa dikembangkan berikutnya:</b> ${GAME_IDEAS.join(' • ')}.</p></div>
+  ${mxTabs()}
+  <div class="row" style="margin:8px 0"><button class="btn pri" data-act="gen-game">✨ ${d ? 'Generate ulang' : 'Generate'} game</button>${d ? '<button class="btn" data-act="game-open">▶ Mainkan</button><button class="btn" data-act="game-html">⬇ Unduh HTML game</button><button class="btn danger sm" data-act="del" data-t="game">Hapus</button>' : ''}</div>
+  ${d ? `<div class="card"><h2>🎮 ${esc(d.judul)}</h2><p class="hint" style="margin:0">${d.games.map(x => { const t = GAME_TYPES.find(y => y.id === x.tipe); return `${t.ic} ${t.n} (${(x.pairs || x.items || x.sets || x.cats).length} butir)`; }).join(' • ')}</p><p class="hint">Klik <b>▶ Mainkan</b> untuk mencoba di tab baru, lalu <b>Unduh HTML game</b> dan bagikan filenya ke siswa (WhatsApp/Drive/flashdisk).</p></div>` : '<div class="note info">Pilih jenis game lalu tekan <b>Generate game</b>.</div>'}`;
+}
+
 function vMateri() {
+  if (State.forms.materi.fmt === 'game') return vGame();
   const f = 'forms.materi', X = State.forms.materi.fmt === 'interaktif', D = State.docs, has = !!D.materi, hasX = !!D.materiX, G = State.forms.materi.who === 'guru';
   const genBtns = `<button class="btn${X ? '' : ' pri'}" data-act="gen-materi" data-fmt="formal">✨ ${has ? 'Generate ulang' : 'Generate'} format formal</button><button class="btn${X ? ' pri' : ''}" data-act="gen-materi" data-fmt="interaktif">✨ ${hasX ? 'Generate ulang' : 'Generate'} format interaktif</button>`;
   const cur = X ? hasX : has;
   const dels = X ? (hasX ? '<button class="btn danger sm" data-act="del" data-t="materiX">Hapus</button>' : '') : (has ? '<button class="btn danger sm" data-act="del" data-t="materi">Hapus</button>' : '');
   const tool = docToolbar(X ? (G ? 'materixguru' : 'materix') : (G ? 'materiguru' : 'materi'), genBtns + dels, X && !G && hasX ? '<button class="btn" data-act="mx-open">▶ Coba interaktif</button><button class="btn" data-act="mx-html">⬇ Unduh HTML interaktif</button>' : '');
-  return `<h1 class="pt">Materi Ajar</h1><p class="lead">Dua pilihan format. <b>Formal</b>: bahan ajar bergaya dokumen (tujuan, uraian, contoh, rangkuman, soal + kunci, glosarium, pustaka). <b>Interaktif</b>: lembar belajar berwarna dengan kotak contoh (bisa bersuara untuk mapel bahasa), tabel, kartu, dialog, kuis pilihan ganda yang langsung dinilai, dan kotak gambar yang bisa diisi foto sendiri.</p>${noKeyNote()}${errBox}
+  return `<h1 class="pt">Materi Ajar</h1><p class="lead">Tiga pilihan format. <b>Game</b>: permainan edukatif HTML (mencocokkan pasangan, tebak isi kotak, kuis kilat, dll.). <b>Formal</b>: bahan ajar bergaya dokumen (tujuan, uraian, contoh, rangkuman, soal + kunci, glosarium, pustaka). <b>Interaktif</b>: lembar belajar berwarna dengan kotak contoh (bisa bersuara untuk mapel bahasa), tabel, kartu, dialog, kuis pilihan ganda yang langsung dinilai, dan kotak gambar yang bisa diisi foto sendiri.</p>${noKeyNote()}${errBox}
   <div class="card"><h2>Bahan Materi</h2><div class="grid">
     ${atpPicker('materi')}
     ${fld('Topik / judul materi', f + '.judul', { cls: 'w2' })}
@@ -35686,7 +35848,7 @@ function vMateri() {
     ${sel('Kedalaman uraian', f + '.detail', [{ v: 'ringkas', t: 'Ringkas' }, { v: 'sedang', t: 'Sedang' }, { v: 'lengkap', t: 'Lengkap' }])}
     ${ta('Catatan khusus (opsional)', f + '.note', { cls: 'wide', h: 56 })}
   </div></div>
-  <div class="tabs"><button class="${X ? '' : 'on'}" data-act="mx-tab" data-v="formal">📄 Format formal${has ? ' ✓' : ''}</button><button class="${X ? 'on' : ''}" data-act="mx-tab" data-v="interaktif">🎨 Format interaktif${hasX ? ' ✓' : ''}</button></div>
+  ${mxTabs()}
   ${cur ? whoTabs('materi', State.forms.materi.who, true) : ''}
   ${tool}
   ${X && hasX && !G ? '<div class="note info">Gambar: AI tidak membuat foto. Klik kotak gambar (atau <b>Unggah foto</b>) untuk memasang gambar Anda sendiri, <b>+ Tambah gambar</b> untuk kotak baru. Pratinjau di sini untuk mengedit; tombol <b>▶ Coba interaktif</b> membuka versi yang bisa diklik (kuis, suara, terjemahan). <b>Unduh HTML interaktif</b> menghasilkan satu file yang bisa dibagikan ke siswa dan dibuka di HP/laptop. DOCX/PDF memuat versi cetaknya.</div>' : ''}
@@ -35910,6 +36072,10 @@ document.addEventListener('click', async e => {
       case 'mx-key': State.docs.materiX.kuis[+a.dataset.i].kunci = +a.dataset.j; save(); renderView(); break;
       case 'mx-html': { const d = State.docs.materiX; if (d) track('export', `HTML interaktif • ${trackInfo()}`); if (d) downloadBlob(new Blob([mxExportHTML(d)], { type: 'text/html' }), `Materi_Interaktif_${fileSafe(State.ctx.mapel)}_${fileSafe(d.judul)}.html`); break; }
       case 'mx-open': { const d = State.docs.materiX; if (d) { const u = URL.createObjectURL(new Blob([mxExportHTML(d)], { type: 'text/html' })); if (!window.open(u, '_blank')) toast('Pop-up diblokir browser. Izinkan pop-up atau pakai Unduh HTML interaktif.', true); } break; }
+      case 'gen-game': genGame(); break;
+      case 'game-pick': { const g = State.forms.game, id = a.dataset.id; g.types = g.types.filter(x => x !== id); if (a.checked) g.types.push(id); g.types = GAME_TYPES.map(x => x.id).filter(x => g.types.includes(x)); save(); break; }
+      case 'game-open': { const d = State.docs.game; if (d) { const u = URL.createObjectURL(new Blob([gameExportHTML(d)], { type: 'text/html' })); if (!window.open(u, '_blank')) toast('Pop-up diblokir browser. Izinkan pop-up atau pakai Unduh HTML game.', true); } break; }
+      case 'game-html': { const d = State.docs.game; if (d) { track('export', `HTML game • ${trackInfo()}`); downloadBlob(new Blob([gameExportHTML(d)], { type: 'text/html' }), `Game_${fileSafe(State.ctx.mapel)}_${fileSafe(d.judul)}.html`); } break; }
       case 'say': break;
       case 'gen-lkpd': genLKPD(); break;
       case 'class-mode': startClassroom(); break;
@@ -35930,7 +36096,7 @@ document.addEventListener('click', async e => {
       case 'backup': {
         const k = a.dataset.k || 'semua', full = JSON.parse(JSON.stringify(State)); let o;
         if (k === 'dasar') o = { identity: full.identity, ctx: full.ctx };
-        else if (k === 'dokumen') o = { docs: { modul: full.docs.modul, materi: full.docs.materi, materiX: full.docs.materiX, lkpd: full.docs.lkpd }, forms: full.forms };
+        else if (k === 'dokumen') o = { docs: { modul: full.docs.modul, materi: full.docs.materi, materiX: full.docs.materiX, game: full.docs.game, lkpd: full.docs.lkpd }, forms: full.forms };
         else { o = full; delete o.settings; }
         const nama = (State.docs.modul && State.docs.modul.judul) || State.forms.modul.judul || State.forms.modul.materi || (State.docs.materiX && State.docs.materiX.judul) || (State.docs.materi && State.docs.materi.judul) || (State.docs.lkpd && State.docs.lkpd.judul) || State.forms.materi.judul || '';
         o._meta = { jenis: k, mapel: State.ctx.mapel, kelas: State.ctx.kelas, modul: nama, tanggal: new Date().toISOString() };
